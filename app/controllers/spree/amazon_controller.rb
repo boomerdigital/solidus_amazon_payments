@@ -54,9 +54,6 @@ class Spree::AmazonController < Spree::StoreController
 
   def confirm
     if Spree::OrderUpdateAttributes.new(current_order, checkout_params, request_env: request.headers.env).apply
-      while current_order.next
-      end
-
       update_payment_amount!
       current_order.next! unless current_order.confirm?
     else
