@@ -116,6 +116,7 @@ class Spree::AmazonController < Spree::StoreController
       firstname: amazon_address.first_name || "Amazon",
       lastname: amazon_address.last_name || "User",
       address1: amazon_address.address1 || "N/A",
+      address2: amazon_address.address2 || "N/A",
       phone: amazon_address.phone || "N/A",
       city: amazon_address.city,
       zipcode: amazon_address.zipcode,

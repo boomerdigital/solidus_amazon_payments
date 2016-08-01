@@ -25,6 +25,7 @@ class SpreeAmazon::Address
     def attributes_from_response(response)
       {
         address1: response["AddressLine1"],
+        address2: response["AddressLine2"],
         name: response["Name"],
         city: response["City"],
         zipcode: response["PostalCode"],
@@ -36,7 +37,7 @@ class SpreeAmazon::Address
   end
 
   attr_accessor :name, :city, :zipcode, :state_name, :country_code,
-                :address1, :phone
+                :address1, :address2, :phone
 
   def initialize(attributes)
     attributes.each_pair do |key, value|

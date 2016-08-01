@@ -172,6 +172,7 @@ describe Spree::AmazonController do
       address = build_amazon_address(
         name: 'Matt Murdock',
         address1: '224 Lafayette St',
+        address2: 'Suite 2',
         city: 'New York',
         state_name: 'NY',
         country_code: 'US',
@@ -190,6 +191,7 @@ describe Spree::AmazonController do
       expect(address.firstname).to eq('Matt')
       expect(address.lastname).to eq('Murdock')
       expect(address.address1).to eq('224 Lafayette St')
+      expect(address.address2).to eq('Suite 2')
       expect(address.city).to eq('New York')
       expect(address.state_text).to eq('NY')
       expect(address.country).to eq(us)

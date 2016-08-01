@@ -10,7 +10,8 @@ describe SpreeAmazon::Address do
         "CountryCode"=>"US",
         "PostalCode"=>"66615",
         "Name"=>"Mary Jones",
-        "AddressLine1"=>"4409 Main St."
+        "AddressLine1"=>"4409 Main St.",
+        "AddressLine2"=>"Suite 2"
       )
       stub_amazon_response("ORDER_REFERENCE", address_data)
 
@@ -22,6 +23,7 @@ describe SpreeAmazon::Address do
       expect(address.state_name).to eq("KS")
       expect(address.name).to eq("Mary Jones")
       expect(address.address1).to eq("4409 Main St.")
+      expect(address.address2).to eq("Suite 2")
       expect(address.phone).to eq("800-000-0000")
     end
 
