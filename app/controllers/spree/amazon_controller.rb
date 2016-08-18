@@ -47,6 +47,8 @@ class Spree::AmazonController < Spree::StoreController
 
       current_order.reload
       render layout: false
+    elsif request.xhr?
+      render text: 'Unable to load Address data from Amazon', layout: false, status: '412'
     else
       redirect_to address_amazon_order_path, notice: "Unable to load Address data from Amazon"
     end
@@ -133,8 +135,13 @@ class Spree::AmazonController < Spree::StoreController
 
   def check_amazon_reference_id
     unless current_order.amazon_order_reference_id
-      flash.now[:notice] = 'No order reference found'
-      redirect_to root_path
+      # check for an ajax request
+      if request.xhr?
+        render text: 'No order reference found', layout: false, status: '412'
+      else
+        flash.now[:notice] = 'No order reference found'
+        redirect_to root_path
+      end
     end
   end
 end
