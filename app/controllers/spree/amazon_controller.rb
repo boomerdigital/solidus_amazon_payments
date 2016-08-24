@@ -98,7 +98,8 @@ class Spree::AmazonController < Spree::StoreController
     amazon_order = SpreeAmazon::Order.new(
       reference_id: current_order.amazon_order_reference_id,
       total: current_order.total,
-      currency: current_order.currency
+      currency: current_order.currency,
+      gateway: Spree::Gateway::Amazon.for_currency(current_order.currency)
     )
     amazon_order.save_total
     amazon_order.confirm
