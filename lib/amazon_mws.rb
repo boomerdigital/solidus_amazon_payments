@@ -54,12 +54,11 @@ class AmazonMws
   end
 
   def set_order_data(total, currency)
-    process({
-      "Action"=>"SetOrderReferenceDetails",
-      "AmazonOrderReferenceId" => @amazon_order_reference_id,
-      "OrderReferenceAttributes.OrderTotal.Amount" => total,
-      "OrderReferenceAttributes.OrderTotal.CurrencyCode" => currency
-    })
+    client.set_order_reference_details(
+      @amazon_order_reference_id,
+      total,
+      currency_code: currency
+    )
   end
 
   def confirm_order
