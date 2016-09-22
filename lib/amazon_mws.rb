@@ -99,14 +99,14 @@ class AmazonMws
     client.get_capture_details(capture_id)
   end
 
-  def refund(capture_id, ref_number, total, currency)
-    process({
-      "Action"=>"Refund",
-      "AmazonCaptureId" => capture_id,
-      "RefundReferenceId" => ref_number,
-      "RefundAmount.Amount" => total,
-      "RefundAmount.CurrencyCode" => currency
-    })
+  def refund(capture_id, ref_number, total, currency, seller_refund_note: nil)
+    client.refund(
+      capture_id,
+      ref_number,
+      total,
+      currency_code: currency,
+      seller_refund_note: seller_refund_note
+    )
   end
 
   def get_refund_details(ref_number)
