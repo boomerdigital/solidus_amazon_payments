@@ -175,7 +175,7 @@ module Spree
       capture_id = order.amazon_transaction.capture_id
 
       if capture_id.nil?
-        response = @mws.cancel(order.amazon_transaction.order_reference)
+        response = @mws.cancel
       else
         response = @mws.refund(capture_id, gateway_options[:order_id], order.total, order.currency)
       end

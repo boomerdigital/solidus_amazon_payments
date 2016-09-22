@@ -47,26 +47,23 @@ class AmazonMws
 
 
   def fetch_order_data
-    AmazonMwsOrderResponse.new(process({
-      "Action"=>"GetOrderReferenceDetails",
-      "AmazonOrderReferenceId" => @amazon_order_reference_id,
-    }))
+    AmazonMwsOrderResponse.new(get_order_reference_details)
   end
 
   def set_order_data(total, currency)
-    process({
-      "Action"=>"SetOrderReferenceDetails",
-      "AmazonOrderReferenceId" => @amazon_order_reference_id,
-      "OrderReferenceAttributes.OrderTotal.Amount" => total,
-      "OrderReferenceAttributes.OrderTotal.CurrencyCode" => currency
-    })
+    client.set_order_reference_details(
+      @amazon_order_reference_id,
+      total,
+      currency_code: currency
+    )
+  end
+
+  def get_order_reference_details
+    client.get_order_reference_details(@amazon_order_reference_id)
   end
 
   def confirm_order
-    process({
-      "Action"=>"ConfirmOrderReference",
-      "AmazonOrderReferenceId" => @amazon_order_reference_id,
-    })
+    client.comfirm_order_reference(@amazon_order_reference_id)
   end
 
   def authorize(authorization_reference_id, total, currency, seller_authorization_note: nil)
@@ -81,52 +78,40 @@ class AmazonMws
     )
   end
 
-  def get_authorization_details(ref_number)
-    process({
-      "Action" => "GetAuthorizationDetails",
-      "AmazonAuthorizationId" => ref_number
-      })
+  def get_authorization_details(auth_id)
+    client.get_authorization_details(auth_id)
   end
 
-  def capture(auth_number, ref_number, total, currency)
-    process({
-      "Action"=>"Capture",
-      "AmazonAuthorizationId" => auth_number,
-      "CaptureReferenceId" => ref_number,
-      "CaptureAmount.Amount" => total,
-      "CaptureAmount.CurrencyCode" => currency
-    })
+  def capture(auth_number, ref_number, total, currency, seller_capture_note: nil)
+    client.capture(
+      auth_number,
+      ref_number,
+      total,
+      currency_code: currency,
+      seller_capture_note: seller_capture_note
+    )
   end
 
-  def get_capture_details(ref_number)
-    process({
-      "Action" => "GetCaptureDetails",
-      "AmazonCaptureId" => ref_number
-      })
+  def get_capture_details(capture_id)
+    client.get_capture_details(capture_id)
   end
 
-  def refund(capture_id, ref_number, total, currency)
-    process({
-      "Action"=>"Refund",
-      "AmazonCaptureId" => capture_id,
-      "RefundReferenceId" => ref_number,
-      "RefundAmount.Amount" => total,
-      "RefundAmount.CurrencyCode" => currency
-    })
+  def refund(capture_id, ref_number, total, currency, seller_refund_note: nil)
+    client.refund(
+      capture_id,
+      ref_number,
+      total,
+      currency_code: currency,
+      seller_refund_note: seller_refund_note
+    )
   end
 
-  def get_refund_details(ref_number)
-    process({
-      "Action" => "GetRefundDetails",
-      "AmazonRefundId" => ref_number
-      })
+  def get_refund_details(refund_id)
+    client.get_refund_details(refund_id)
   end
 
-  def cancel(ref_number)
-    process({
-      "Action" => "CancelOrderReference",
-      "AmazonOrderReferenceId" => ref_number
-      })
+  def cancel
+    client.cancel_order_reference(@amazon_order_reference_id)
   end
 
   # Amazon's description:
@@ -143,33 +128,6 @@ class AmazonMws
   end
 
   private
-
-  def default_hash
-    {
-      "AWSAccessKeyId" => @gateway.preferred_aws_access_key_id,
-      "SellerId" => @gateway.preferred_merchant_id,
-      "PlatformId"=>"A31NP5KFHXSFV1",
-      "SignatureMethod"=>"HmacSHA256",
-      "SignatureVersion"=>"2",
-      "Timestamp"=>Time.now.utc.iso8601,
-      "Version"=>"2013-01-01"
-    }
-  end
-
-  def process(hash)
-    hash = default_hash.reverse_merge(hash)
-    query_string = hash.sort.map { |k, v| "#{k}=#{ custom_escape(v) }" }.join("&")
-    url = URI.parse(@gateway.api_url)
-    message = ["POST", url.hostname, url.path, query_string].join("\n")
-    query_string += "&Signature=" + custom_escape(Base64.encode64(OpenSSL::HMAC.digest(OpenSSL::Digest::SHA256.new, @gateway.preferred_aws_secret_access_key, message)).strip)
-    HTTParty.post(url, :body => query_string)
-  end
-
-  def custom_escape(val)
-    val.to_s.gsub(/([^\w.~-]+)/) do
-      "%" + $1.unpack("H2" * $1.bytesize).join("%").upcase
-    end
-  end
 
   def client
     @client ||= PayWithAmazon::Client.new(
