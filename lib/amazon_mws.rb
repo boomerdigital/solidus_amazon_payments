@@ -81,11 +81,8 @@ class AmazonMws
     )
   end
 
-  def get_authorization_details(ref_number)
-    process({
-      "Action" => "GetAuthorizationDetails",
-      "AmazonAuthorizationId" => ref_number
-      })
+  def get_authorization_details(auth_id)
+    client.get_authorization_details(auth_id)
   end
 
   def capture(auth_number, ref_number, total, currency, seller_capture_note: nil)
