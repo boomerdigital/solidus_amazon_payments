@@ -61,6 +61,10 @@ class AmazonMws
     )
   end
 
+  def get_order_reference_details
+    client.get_order_reference_details(@amazon_order_reference_id)
+  end
+
   def confirm_order
     client.comfirm_order_reference(@amazon_order_reference_id)
   end
