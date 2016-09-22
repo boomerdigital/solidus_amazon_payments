@@ -47,10 +47,7 @@ class AmazonMws
 
 
   def fetch_order_data
-    AmazonMwsOrderResponse.new(process({
-      "Action"=>"GetOrderReferenceDetails",
-      "AmazonOrderReferenceId" => @amazon_order_reference_id,
-    }))
+    AmazonMwsOrderResponse.new(get_order_reference_details)
   end
 
   def set_order_data(total, currency)
