@@ -129,33 +129,6 @@ class AmazonMws
 
   private
 
-  def default_hash
-    {
-      "AWSAccessKeyId" => @gateway.preferred_aws_access_key_id,
-      "SellerId" => @gateway.preferred_merchant_id,
-      "PlatformId"=>"A31NP5KFHXSFV1",
-      "SignatureMethod"=>"HmacSHA256",
-      "SignatureVersion"=>"2",
-      "Timestamp"=>Time.now.utc.iso8601,
-      "Version"=>"2013-01-01"
-    }
-  end
-
-  def process(hash)
-    hash = default_hash.reverse_merge(hash)
-    query_string = hash.sort.map { |k, v| "#{k}=#{ custom_escape(v) }" }.join("&")
-    url = URI.parse(@gateway.api_url)
-    message = ["POST", url.hostname, url.path, query_string].join("\n")
-    query_string += "&Signature=" + custom_escape(Base64.encode64(OpenSSL::HMAC.digest(OpenSSL::Digest::SHA256.new, @gateway.preferred_aws_secret_access_key, message)).strip)
-    HTTParty.post(url, :body => query_string)
-  end
-
-  def custom_escape(val)
-    val.to_s.gsub(/([^\w.~-]+)/) do
-      "%" + $1.unpack("H2" * $1.bytesize).join("%").upcase
-    end
-  end
-
   def client
     @client ||= PayWithAmazon::Client.new(
       @gateway.preferred_merchant_id,
