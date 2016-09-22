@@ -88,14 +88,14 @@ class AmazonMws
       })
   end
 
-  def capture(auth_number, ref_number, total, currency)
-    process({
-      "Action"=>"Capture",
-      "AmazonAuthorizationId" => auth_number,
-      "CaptureReferenceId" => ref_number,
-      "CaptureAmount.Amount" => total,
-      "CaptureAmount.CurrencyCode" => currency
-    })
+  def capture(auth_number, ref_number, total, currency, seller_capture_note: nil)
+    client.capture(
+      auth_number,
+      ref_number,
+      total,
+      currency_code: currency,
+      seller_capture_note: seller_capture_note
+    )
   end
 
   def get_capture_details(ref_number)
