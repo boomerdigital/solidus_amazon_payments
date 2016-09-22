@@ -122,11 +122,8 @@ class AmazonMws
       })
   end
 
-  def cancel(ref_number)
-    process({
-      "Action" => "CancelOrderReference",
-      "AmazonOrderReferenceId" => ref_number
-      })
+  def cancel
+    client.cancel_order_reference(@amazon_order_reference_id)
   end
 
   # Amazon's description:
