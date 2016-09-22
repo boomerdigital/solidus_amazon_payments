@@ -95,11 +95,8 @@ class AmazonMws
     )
   end
 
-  def get_capture_details(ref_number)
-    process({
-      "Action" => "GetCaptureDetails",
-      "AmazonCaptureId" => ref_number
-      })
+  def get_capture_details(capture_id)
+    client.get_capture_details(capture_id)
   end
 
   def refund(capture_id, ref_number, total, currency)
