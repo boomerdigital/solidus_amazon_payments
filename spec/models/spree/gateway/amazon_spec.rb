@@ -15,24 +15,15 @@ describe Spree::Gateway::Amazon do
   let(:mws) { payment_method.send(:load_amazon_mws, 'REFERENCE') }
 
   describe "#credit" do
-    it "calls refund on mws with the correct parameters" do
+    it 'succeeds' do
+      allow_any_instance_of(Spree::Gateway::Amazon).to receive(:operation_unique_id).and_return('REFERENCE')
       amazon_transaction = create(:amazon_transaction, capture_id: "CAPTURE_ID")
       payment = create(:payment, source: amazon_transaction, amount: 30.0, payment_method: payment_method)
       refund = create(:refund, payment: payment, amount: 30.0)
-      allow(mws).to receive(:refund).and_return({})
-
-      payment_method.credit(3000, nil, { originator: refund })
-
-      expect(mws).to have_received(:refund).with("CAPTURE_ID", /^#{payment.number}-\w+$/, 30.0, "USD")
-    end
-
-    let!(:refund) { create(:refund, payment: payment, amount: payment.amount) }
-    it 'succeeds' do
-      response = build_mws_refund_response(state: 'Pending', total: order.total)
-      expect(mws).to receive(:refund).and_return(response)
+      stub_refund_request(order: order)
 
 
-      auth = payment_method.credit(order.total, payment_source, { originator: refund })
+      auth = payment_method.credit(order.total, nil, { originator: refund })
       expect(auth).to be_success
     end
   end
@@ -102,7 +93,7 @@ describe Spree::Gateway::Amazon do
         stub_auth_request(return_values: {
           headers: {'content-type' => 'text/plain'},
           status: 502,
-          body: 'Bad Gateway',
+          body: build_error_response(code: 502, message: "502 Bad Gateway")
         })
 
         response = payment_method.authorize(order.total, payment_source, {order_id: payment.send(:gateway_order_id)})
@@ -203,16 +194,33 @@ describe Spree::Gateway::Amazon do
   end
 
   describe '#capture' do
-    let(:payment_source) { Spree::AmazonTransaction.create!(order_id: order.id, order_reference: 'REFERENCE', authorization_id: 'AUTHORIZATION_ID') }
-    it 'succeeds' do
-      response = build_mws_capture_response(state: 'Completed', total: order.total)
-      expect(mws).to(
-        receive(:capture).
-          with("AUTHORIZATION_ID", /^#{payment.number}-\w+$/, order.total/100.0, "USD").
-          and_return(response)
+    def stub_capture_request(expected_body: nil, return_values: nil)
+      stub_request(
+        :post,
+        'https://mws.amazonservices.com/OffAmazonPayments_Sandbox/2013-01-01',
+      ).with(
+        body: expected_body || hash_including(
+          'Action' => 'Capture',
+          'AmazonAuthorizationId' => 'AUTHORIZATION_ID',
+          'CaptureReferenceId' => 'REFERENCE',
+          'CaptureAmount.Amount' => '1.1',
+          'CaptureAmount.CurrencyCode' => order.currency
+        )
+      ).to_return(
+        return_values || {
+          headers: {'content-type' => 'text/xml'},
+          body: build_mws_capture_approved_response(order: order, capture_reference_id: 'REFERENCE'),
+        },
       )
+    end
+    let(:payment_source) { create(:amazon_transaction, order_reference: 'REFERENCE', order_id: order.id) }
+    it 'succeeds' do
+      allow_any_instance_of(Spree::Gateway::Amazon).to receive(:operation_unique_id).and_return('REFERENCE')
+      stub_capture_request
+
 
       auth = payment_method.capture(order.total, payment_source, {order_id: payment.send(:gateway_order_id)})
+
       expect(auth).to be_success
     end
   end
@@ -234,21 +242,7 @@ describe Spree::Gateway::Amazon do
   context 'void' do
     describe 'payment has not yet been captured' do
       it 'cancel succeeds' do
-        response = build_mws_void_response
-        expect(mws).to receive(:cancel).and_return(response)
-
-        auth = payment_method.void('', {order_id: payment.send(:gateway_order_id)})
-        expect(auth).to be_success
-      end
-    end
-
-    describe 'payment has been previously captured' do
-      let!(:refund) { create(:refund, payment: payment, amount: payment.amount) }
-
-      it 'refund succeeds' do
-        payment.order.amazon_transaction.update_attributes(capture_id: 'P01-1234567-1234567-0000002')
-        response = build_mws_refund_response(state: 'Pending', total: order.total)
-        expect(mws).to receive(:refund).and_return(response)
+        stub_cancel_request
 
         auth = payment_method.void('', {order_id: payment.send(:gateway_order_id)})
         expect(auth).to be_success
@@ -295,6 +289,42 @@ describe Spree::Gateway::Amazon do
     it 'generates the url based on the region' do
       expect(gbp_gateway.widgets_url).not_to eq(usd_gateway.widgets_url)
     end
+  end
+
+  def stub_cancel_request
+    stub_request(
+      :post,
+      'https://mws.amazonservices.com/OffAmazonPayments_Sandbox/2013-01-01',
+    ).with(
+      body: hash_including(
+        'Action' => 'CancelOrderReference'
+      )
+    ).to_return(
+      {
+        headers: {'content-type' => 'text/xml'},
+        body: build_mws_void_response
+      },
+    )
+  end
+
+  def stub_refund_request(order: nil)
+    stub_request(
+      :post,
+      'https://mws.amazonservices.com/OffAmazonPayments_Sandbox/2013-01-01',
+    ).with(
+      body: hash_including(
+        'Action' => 'Refund',
+        'AmazonCaptureId' => 'CAPTURE_ID',
+        'RefundReferenceId' => 'REFERENCE',
+        'RefundAmount.Amount' => '1.1',
+        'RefundAmount.CurrencyCode' => order.currency
+      )
+    ).to_return(
+      {
+        headers: {'content-type' => 'text/xml'},
+        body: build_mws_refund_response(state: 'Pending', total: '1.1')
+      },
+    )
   end
 
   def build_mws_auth_approved_response(
@@ -401,20 +431,54 @@ describe Spree::Gateway::Amazon do
     XML
   end
 
-  def build_mws_capture_response(state:, total:)
+  def build_mws_capture_approved_response(
+    order:,
+    capture_reference_id: 'some-capture-reference-id',
+    amazon_capture_id: 'some-amazon-capture-id'
+  )
+    <<-XML.strip_heredoc
+      <CaptureResponse xmlns="https://mws.amazonservices.com/schema/OffAmazonPayments/2013-01-01">
+        <CaptureResult>
+          <CaptureDetails>
+            <AmazonCaptureId>#{amazon_capture_id}</AmazonCaptureId>
+            <CaptureReferenceId>#{capture_reference_id}</CaptureReferenceId>
+            <SellerCaptureNote>Lorem ipsum</SellerCaptureNote>
+            <CaptureAmount>
+              <CurrencyCode>#{order.currency}</CurrencyCode>
+              <Amount>#{order.total}</Amount>
+            </CaptureAmount>
+            <CaptureStatus>
+              <State>Completed</State>
+              <LastUpdateTimestamp>2012-11-03T19:10:16Z</LastUpdateTimestamp>
+            </CaptureStatus>
+            <CreationTimestamp>2012-11-03T19:10:16Z</CreationTimestamp>
+          </CaptureDetails>
+        </CaptureResult>
+        <ResponseMetadata>
+          <RequestId>b4ab4bc3-c9ea-44f0-9a3d-67cccef565c6</RequestId>
+        </ResponseMetadata>
+      </CaptureResponse>
+    XML
+  end
+
+  def build_mws_capture_response(
+    order:,
+    capture_reference_id: 'some-capture-reference-id',
+    amazon_capture_id: 'some-amazon-capture-id'
+  )
     {
       "CaptureResponse" => {
         "CaptureResult" => {
           "CaptureDetails" => {
-            "AmazonCaptureId" => "P01-1234567-1234567-0000002",
-            "CaptureReferenceId" => "test_capture_1",
+            "AmazonCaptureId" => amazon_capture_id,
+            "CaptureReferenceId" => capture_reference_id,
             "SellerCaptureNote" => "Lorem ipsum",
             "CaptureAmount" => {
               "CurrencyCode" => "USD",
-              "Amount" => total
+              "Amount" => order.total
             },
             "CaptureStatus" => {
-              "State" => state,
+              "State" => "Open",
               "LastUpdateTimestamp" => "2012-11-03T19:10:16Z"
             },
             "CreationTimestamp" => "2012-11-03T19:10:16Z"
@@ -426,40 +490,57 @@ describe Spree::Gateway::Amazon do
   end
 
   def build_mws_refund_response(state:, total:)
-    {
-      "RefundResponse" => {
-        "RefundResult" => {
-          "RefundDetails" => {
-            "AmazonRefundId" => "P01-1234567-1234567-0000003",
-            "RefundReferenceId" => "test_refund_1",
-            "SellerRefundNote" => "Lorem ipsum",
-            "RefundType" => "SellerInitiated",
-            "RefundedAmount" => {
-              "CurrencyCode" => "USD",
-              "Amount" => total
-            },
-            "FeeRefunded" => {
-              "CurrencyCode" => "USD",
-              "Amount" => "0"
-            },
-            "RefundStatus" => {
-              "State" => state,
-              "LastUpdateTimestamp" => "2012-11-07T19:10:16Z"
-            },
-            "CreationTimestamp" => "2012-11-05T19:10:16Z"
-          }
-        },
-        "ResponseMetadata" => { "RequestId" => "b4ab4bc3-c9ea-44f0-9a3d-67cccef565c6" }
-      }
-    }
+    <<-XML.strip_heredoc
+      <RefundResponse xmlns="https://mws.amazonservices.com/schema/OffAmazonPayments/2013-01-01">
+        <RefundResult>
+          <RefundDetails>
+            <AmazonRefundId>P01-1234567-1234567-0000003</AmazonRefundId>
+            <RefundReferenceId>test_refund_1</RefundReferenceId>
+            <SellerRefundNote></SellerRefundNote>
+            <RefundType>SellerInitiated</RefundType>
+            <RefundedAmount>
+              <CurrencyCode>USD</CurrencyCode>
+              <Amount>#{total}</Amount>
+            </RefundedAmount>
+            <FeeRefunded>
+              <CurrencyCode>USD</CurrencyCode>
+              <Amount>0</Amount>
+            </FeeRefunded>
+            <RefundStatus>
+              <State>#{state}</State>
+              <LastUpdateTimestamp>2012-11-07T19:10:16Z</LastUpdateTimestamp>
+            </RefundStatus>
+            <CreationTimestamp>2012-11-05T19:10:16Z</CreationTimestamp>
+          </RefundDetails>
+        </RefundResult>
+        <ResponseMetadata>
+          <RequestId>b4ab4bc3-c9ea-44f0-9a3d-67cccef565c6</RequestId>
+        </ResponseMetadata>
+      </RefundResponse>
+    XML
   end
 
   def build_mws_void_response
-    {
-      "CancelOrderReferenceResponse" => {
-        "CancelOrderReferenceResult"=> nil,
-        "ResponseMetadata" => { "RequestId" => "b4ab4bc3-c9ea-44f0-9a3d-67cccef565c6" }
-      }
-    }
+    <<-XML.strip_heredoc
+        <CancelOrderReferenceResponse
+  xmlns="https://mws.amazonservices.com/schema/OffAmazonPayments/2013-01-01">
+        <ResponseMetadata>
+          <RequestId>5f20169b-7ab2-11df-bcef-d35615e2b044</RequestId>
+        </ResponseMetadata>
+      </CancelOrderReferenceResponse>
+    XML
+  end
+
+  def build_error_response(code: 400, message: 'FAILURE')
+    <<-XML.strip_heredoc
+      <ErrorResponse xmlns="http://mws.amazonservices.com/schema/OffAmazonPayments/2013-01-01">
+        <Error>
+          <Type>Sender</Type>
+          <Code>#{code}</Code>
+          <Message>#{message}</Message>
+        </Error>
+        <RequestId>7a1a4219-7b80-4d32-a08c-708fd7f52ebc</RequestId>
+      </ErrorResponse>
+    XML
   end
 end

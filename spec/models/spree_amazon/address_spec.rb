@@ -6,11 +6,11 @@ describe SpreeAmazon::Address do
   describe '.find' do
     it "returns a new address if the order has a Physical address" do
       address_data = build_address_response(
-        "StateOrRegion"=>"KS",
-        "Phone"=>"800-000-0000",
         "City"=>"Topeka",
-        "CountryCode"=>"US",
+        "StateOrRegion"=>"KS",
         "PostalCode"=>"66615",
+        "CountryCode"=>"US",
+        "Phone"=>"800-000-0000",
         "Name"=>"Mary Jones",
         "AddressLine1"=>"4409 Main St.",
         "AddressLine2"=>"Suite 2"
@@ -67,37 +67,47 @@ describe SpreeAmazon::Address do
   def stub_amazon_response(order_reference, response_data)
     Spree::Gateway::Amazon.create!(name: 'Amazon', preferred_test_mode: true)
     mws = instance_double(AmazonMws)
-    response = AmazonMwsOrderResponse.new(response_data)
-    allow(mws).to receive(:fetch_order_data).and_return(response)
-    allow(AmazonMws).to receive(:new).with(order_reference, gateway: gateway)
-                                     .and_return(mws)
+    stub_request(
+      :post,
+      'https://mws.amazonservices.com/OffAmazonPayments_Sandbox/2013-01-01',
+    ).with(
+      body: hash_including(
+        'Action' => 'GetOrderReferenceDetails'
+      )
+    ).to_return(
+      {
+        headers: {'content-type' => 'text/xml'},
+        body: response_data,
+      },
+    )
   end
 
   def build_address_response(address_details)
-    {
-      "GetOrderReferenceDetailsResponse" =>{
-        "GetOrderReferenceDetailsResult"=> {
-          "OrderReferenceDetails"=> {
-            "OrderReferenceStatus"=> {
-              "LastUpdateTimestamp"=>"2016-04-18T17:05:52.621Z", "State"=>"Open"
-            },
-            "Destination"=> {
-              "DestinationType"=>"Physical",
-              "PhysicalDestination"=> address_details
-            },
-            "ExpirationTimestamp"=>"2016-10-15T17:05:32.272Z",
-            "IdList"=>{"member"=>"S01-4301752-9080047-A018166"},
-            "SellerOrderAttributes"=>nil,
-            "OrderTotal"=>{"CurrencyCode"=>"USD", "Amount"=>"29.14"},
-            "Buyer"=>{"Name"=>"Joe Doe", "Email"=>"joe@doe.com"},
-            "ReleaseEnvironment"=>"Sandbox",
-            "AmazonOrderReferenceId"=>"S01-4301752-9080047",
-            "CreationTimestamp"=>"2016-04-18T17:05:32.272Z",
-            "RequestPaymentAuthorization"=>"false"
-          }
-        },
-        "ResponseMetadata"=>{"RequestId"=>"f390f7fb-0cdc-486c-974b-0db919cf82b3"}
-      }
-    }
+    <<-XML.strip_heredoc
+      <GetOrderReferenceDetailsResponse
+    xmlns="http://mws.amazonservices.com/
+          schema/OffAmazonPayments/2013-01-01">
+        <GetOrderReferenceDetailsResult>
+          <OrderReferenceDetails>
+            <AmazonOrderReferenceId>P01-1234567-1234567</AmazonOrderReferenceId>
+            <CreationTimestamp>2012-11-05T20:21:19Z</CreationTimestamp>
+            <ExpirationTimestamp>2013-05-07T23:21:19Z</ExpirationTimestamp>
+            <OrderReferenceStatus>
+              <State>Open</State>
+            </OrderReferenceStatus>
+            <Destination>
+              <DestinationType>Physical</DestinationType>
+              <PhysicalDestination>
+                #{address_details.nil? ? nil : address_details.to_xml.split("<hash>\n  ").last.split("</hash>\n").first}
+              </PhysicalDestination>
+            </Destination>
+            <ReleaseEnvironment>Live</ReleaseEnvironment>
+          </OrderReferenceDetails>
+        </GetOrderReferenceDetailsResult>
+        <ResponseMetadata>
+          <RequestId>5f20169b-7ab2-11df-bcef-d35615e2b044</RequestId>
+        </ResponseMetadata>
+      </GetOrderReferenceDetailsResponse>
+    XML
   end
 end
