@@ -12,7 +12,7 @@ require 'pay_with_amazon'
 
 class AmazonMwsOrderResponse
   def initialize(response)
-    @response = response.fetch("GetOrderReferenceDetailsResponse", {})
+    @response = Hash.from_xml(response.body).fetch("GetOrderReferenceDetailsResponse", {})
   end
 
   def destination
@@ -38,7 +38,6 @@ class AmazonMwsOrderResponse
 end
 
 class AmazonMws
-  require 'httparty'
 
   def initialize(amazon_order_reference_id, gateway:)
     @amazon_order_reference_id = amazon_order_reference_id
@@ -63,7 +62,7 @@ class AmazonMws
   end
 
   def confirm_order
-    client.comfirm_order_reference(@amazon_order_reference_id)
+    client.confirm_order_reference(@amazon_order_reference_id)
   end
 
   def authorize(authorization_reference_id, total, currency, seller_authorization_note: nil)
