@@ -35,7 +35,7 @@ class SpreeAmazon::Response
   end
 
   def success_state?
-    %w{Open Completed}.include?(state)
+    %w{Pending Draft Open Completed}.include?(state)
   end
 
   def success?
