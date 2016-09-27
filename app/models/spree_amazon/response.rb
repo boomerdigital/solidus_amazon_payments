@@ -43,6 +43,8 @@ class SpreeAmazon::Response
   end
 
   def reason_code
+    return nil if success_state?
+
     fetch("#{response_details}/#{@type}Status", "ReasonCode")
   end
 
