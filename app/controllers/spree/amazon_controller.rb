@@ -53,6 +53,8 @@ class Spree::AmazonController < Spree::StoreController
 
       current_order.reload
       render layout: false
+    elsif request.xhr?
+      render text: 'Unable to load Address data from Amazon', layout: false, status: '412'
     else
       redirect_to address_amazon_order_path, notice: "Unable to load Address data from Amazon"
     end
@@ -60,9 +62,6 @@ class Spree::AmazonController < Spree::StoreController
 
   def confirm
     if Spree::OrderUpdateAttributes.new(current_order, checkout_params, request_env: request.headers.env).apply
-      while current_order.next
-      end
-
       update_payment_amount!
       current_order.next! unless current_order.confirm?
     else
@@ -75,7 +74,7 @@ class Spree::AmazonController < Spree::StoreController
     authorize!(:edit, @order, cookies.signed[:guest_token])
     complete_amazon_order!
 
-    if @order.complete
+    if @order.next
       @current_order = nil
       flash.notice = Spree.t(:order_processed_successfully)
       redirect_to spree.order_path(@order)
@@ -152,8 +151,13 @@ class Spree::AmazonController < Spree::StoreController
 
   def check_amazon_reference_id
     unless current_order.amazon_order_reference_id
-      flash.now[:notice] = 'No order reference found'
-      redirect_to root_path
+      # check for an ajax request
+      if request.xhr?
+        render text: 'No order reference found', layout: false, status: '412'
+      else
+        flash.now[:notice] = 'No order reference found'
+        redirect_to root_path
+      end
     end
   end
 end
