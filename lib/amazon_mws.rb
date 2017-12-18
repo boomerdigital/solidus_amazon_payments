@@ -47,16 +47,7 @@ class AmazonMws
 
 
   def fetch_order_data
-    params = {
-      "Action"=>"GetOrderReferenceDetails",
-      "AmazonOrderReferenceId" => @amazon_order_reference_id,
-    }
-    if @address_consent_token
-      params.merge!('AddressConsentToken' => @address_consent_token)
-    end
-    AmazonMwsOrderResponse.new(
-      get_order_reference_details(params)
-    )
+    AmazonMwsOrderResponse.new(get_order_reference_details)
   end
 
   # @param total [String] The amount to set on the order
@@ -78,8 +69,11 @@ class AmazonMws
     )
   end
 
-  def get_order_reference_details(params)
-    client.get_order_reference_details(params)
+  def get_order_reference_details
+    client.get_order_reference_details(
+      @amazon_order_reference_id,
+      address_consent_token: @address_consent_token,
+    )
   end
 
   def confirm_order
