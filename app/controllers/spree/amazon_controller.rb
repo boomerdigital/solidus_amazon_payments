@@ -75,7 +75,7 @@ class Spree::AmazonController < Spree::StoreController
     authorize!(:edit, @order, cookies.signed[:guest_token])
     complete_amazon_order!
 
-    if @order.complete
+    if @order.complete?
       @current_order = nil
       flash.notice = Spree.t(:order_processed_successfully)
       redirect_to spree.order_path(@order)
