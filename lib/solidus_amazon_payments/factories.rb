@@ -7,7 +7,7 @@
 # @license     http://opensource.org/licenses/Apache-2.0  Apache License, Version 2.0
 #
 ##
-FactoryBot.define do
+FactoryGirl.define do
   factory :amazon_transaction, class: Spree::AmazonTransaction do
     authorization_id "AUTHORIZATION_ID"
     capture_id "CAPTURE_ID"

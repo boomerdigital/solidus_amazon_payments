@@ -46,7 +46,7 @@ require 'spree/testing_support/url_helpers'
 require 'solidus_amazon_payments/factories'
 
 RSpec.configure do |config|
-  config.include FactoryBot::Syntax::Methods
+  config.include FactoryGirl::Syntax::Methods
 
   # Infer an example group's spec type from the file location.
   config.infer_spec_type_from_file_location!
